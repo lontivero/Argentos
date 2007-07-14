@@ -1,0 +1,25 @@
+cdf.o: cdf.c c:/argent-os/inc/mem.h c:/argent-os/inc/tipos.h \
+  c:/argent-os/inc/mensajes.h c:/argent-os/inc/macros.h \
+  c:/argent-os/inc/tipos.h driver.h ..\proc.h c:/argent-os/inc/const.h \
+  cdf.h consola.h c:/argent-os/inc/debug.h terminal.h ..\irq.h ..\otros.h
+consola.o: consola.c c:/argent-os/inc/mem.h c:/argent-os/inc/tipos.h \
+  c:/argent-os/inc/macros.h c:/argent-os/inc/tipos.h \
+  c:/argent-os/inc/sform.h c:/argent-os/inc/multiarg.h \
+  c:/argent-os/inc/tipos.h c:/argent-os/inc/mensajes.h consola.h \
+  c:/argent-os/inc/const.h c:/argent-os/inc/debug.h terminal.h ..\proc.h \
+  ..\mprot.h ..\/proc.h
+dram.o: dram.c c:/argent-os/inc/mem.h c:/argent-os/inc/tipos.h \
+  c:/argent-os/inc/mensajes.h dram.h c:/argent-os/inc/const.h driver.h \
+  ..\proc.h consola.h c:/argent-os/inc/debug.h terminal.h
+driver.o: driver.c driver.h c:/argent-os/inc/tipos.h \
+  c:/argent-os/inc/mensajes.h ..\proc.h c:/argent-os/inc/const.h
+teclado.o: teclado.c c:/argent-os/inc/macros.h c:/argent-os/inc/tipos.h \
+  c:/argent-os/inc/debug.h c:/argent-os/inc/const.h \
+  c:/argent-os/inc/mensajes.h teclado.h terminal.h ..\proc.h ..\irq.h \
+  consola.h mapa_teclado.map
+terminal.o: terminal.c c:/argent-os/inc/mem.h c:/argent-os/inc/tipos.h \
+  c:/argent-os/inc/macros.h c:/argent-os/inc/tipos.h \
+  c:/argent-os/inc/sform.h c:/argent-os/inc/multiarg.h \
+  c:/argent-os/inc/tipos.h driver.h c:/argent-os/inc/mensajes.h ..\proc.h \
+  c:/argent-os/inc/const.h consola.h c:/argent-os/inc/debug.h terminal.h \
+  teclado.h ..\irq.h

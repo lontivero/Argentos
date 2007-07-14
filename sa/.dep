@@ -1,0 +1,8 @@
+cache.o: cache.c c:/argent-os/inc/debug.h c:/argent-os/inc/const.h \
+  c:/argent-os/inc/tipos.h c:/argent-os/inc/mensajes.h cache.h \
+  ..\nucleo\proc.h
+sa.o: sa.c c:/argent-os/inc/debug.h c:/argent-os/inc/const.h \
+  c:/argent-os/inc/tipos.h c:/argent-os/inc/mem.h \
+  c:/argent-os/inc/tipos.h c:/argent-os/inc/macros.h \
+  c:/argent-os/inc/tipos.h c:/argent-os/inc/mensajes.h ..\nucleo\mprot.h \
+  ..\nucleo\/proc.h ..\nucleo\memoria.h ..\nucleo\proc.h cache.h sa.h

@@ -1,0 +1,33 @@
+excep.o: excep.c c:/argent-os/inc/macros.h c:/argent-os/inc/tipos.h \
+  mprot.h c:/argent-os/inc/const.h proc.h excep.h irq.h excep.ayu \
+  disp\consola.h c:/argent-os/inc/debug.h disp\/terminal.h \
+  disp\/..\proc.h
+irq.o: irq.c c:/argent-os/inc/macros.h c:/argent-os/inc/tipos.h irq.h \
+  c:/argent-os/inc/const.h disp\consola.h c:/argent-os/inc/debug.h \
+  disp\/terminal.h disp\/..\proc.h
+kernel.o: kernel.c kernel.h c:/argent-os/inc/const.h \
+  c:/argent-os/inc/tipos.h mprot.h proc.h reloj.h irq.h excep.h \
+  disp\teclado.h disp\/terminal.h disp\/..\proc.h disp\/..\irq.h \
+  disp\terminal.h
+memoria.o: memoria.c c:/argent-os/inc/mem.h c:/argent-os/inc/tipos.h \
+  c:/argent-os/inc/macros.h c:/argent-os/inc/tipos.h \
+  c:/argent-os/inc/mensajes.h mprot.h c:/argent-os/inc/const.h proc.h \
+  memoria.h otros.h disp\consola.h c:/argent-os/inc/debug.h \
+  disp\/terminal.h disp\/..\proc.h
+monton.o: monton.c c:/argent-os/inc/const.h
+mprot.o: mprot.c c:/argent-os/inc/macros.h c:/argent-os/inc/tipos.h \
+  c:/argent-os/inc/mem.h c:/argent-os/inc/tipos.h mprot.h \
+  c:/argent-os/inc/const.h proc.h disp\consola.h c:/argent-os/inc/debug.h \
+  disp\/terminal.h disp\/..\proc.h
+otros.o: otros.c c:/argent-os/inc/macros.h c:/argent-os/inc/tipos.h \
+  c:/argent-os/inc/const.h otros.h
+proc.o: proc.c c:/argent-os/inc/mensajes.h c:/argent-os/inc/macros.h \
+  c:/argent-os/inc/tipos.h c:/argent-os/inc/mem.h \
+  c:/argent-os/inc/tipos.h proc.h c:/argent-os/inc/const.h reloj.h irq.h \
+  mprot.h memoria.h disp\dram.h disp\cdf.h disp\consola.h \
+  c:/argent-os/inc/debug.h disp\/terminal.h disp\/..\proc.h ..\sa\sa.h
+reloj.o: reloj.c c:/argent-os/inc/mensajes.h c:/argent-os/inc/macros.h \
+  c:/argent-os/inc/tipos.h reloj.h irq.h c:/argent-os/inc/const.h proc.h \
+  otros.h disp\consola.h c:/argent-os/inc/debug.h disp\/terminal.h \
+  disp\/..\proc.h
+sistema.o: sistema.c c:/argent-os/inc/mensajes.h

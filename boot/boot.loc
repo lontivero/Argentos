@@ -1,0 +1,10 @@
+ALL:
+	boot.obj
+
+
+BOOT: 0,7C00,0
+*,*,*,boot16
+
+*
+
+

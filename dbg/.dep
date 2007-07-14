@@ -1,0 +1,6 @@
+debug.o: debug.c c:/argent-os/inc/macros.h c:/argent-os/inc/tipos.h \
+  c:/argent-os/inc/debug.h c:/argent-os/inc/const.h \
+  c:/argent-os/inc/multiarg.h c:/argent-os/inc/tipos.h \
+  c:/argent-os/inc/mem.h c:/argent-os/inc/tipos.h \
+  c:/argent-os/inc/sform.h c:/argent-os/inc/multiarg.h ..\nucleo\mprot.h \
+  ..\nucleo\/proc.h ..\nucleo\proc.h

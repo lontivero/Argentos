@@ -1,0 +1,3 @@
+mem.o: mem.c c:/argent-os/inc/mem.h c:/argent-os/inc/tipos.h
+sform.o: sform.c c:/argent-os/inc/sform.h c:/argent-os/inc/multiarg.h \
+  c:/argent-os/inc/tipos.h

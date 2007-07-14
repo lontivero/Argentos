@@ -1,0 +1,361 @@
+#include "dram.h"
+#include "driver.h"
+#include "proc.h"
+#include "mem.h"
+#include "mensajes.h"
+#include "consola.h"
+
+#define TAM_BUFFER_SERIAL	128
+#define NRO_PUERTOS_SERIE	2
+
+PRIVADA dispositivo geometria;  
+
+PRIVADA driver serial_drv = {
+  nombre,       
+  abrir,	    
+  sin_op,       
+  sin_op,      
+  preparar,     
+  operar,       
+  sin_final,    
+  sin_limpieza,
+  sin_geometria 
+};
+
+typedef struct {
+  int  baseport;
+  int  baudios;
+  int  bits_stop;
+  int  word_length;
+  bool parity;
+  bool parity_even;
+  bool parity_const;
+
+  int  icount;			/* nro. de bytes en el buffer de entrada */
+  char *ihead;			/* cabeza del buffer de entrada	*/
+  char *itail;			/* cola del buffer de entrada		*/
+  bool ready;			/* true si estamos listos para recibir */
+
+  int  ocount;			/* nro. de bytes en el buffer de salida */
+  char *ohead;			/* cabeza del buffer de salida	*/
+  char *otail;			/* cola del buffer de salida		*/
+
+  char ibuf[TAM_BUFFER_SERIAL];       /* buffer de entrada */
+  char obuf[TAM_BUFFER_SERIAL];       /* buffer de salida  */
+} rs232;
+
+rs232 pserial[NRO_PUERTOS_SERIE];
+
+#define UART_RBR(rs)		(rs->baseport + 0)	/* Receiver Data */
+#define UART_DLL(rs)		(rs->baseport + 0)	/* Baund Rate Divisor LSB */
+#define UART_DLM(rs)		(rs->baseport + 1)	/* Baund Rate Divisor MSB */
+#define UART_IER(rs)		(rs->baseport + 1)	/* Interrupt Enable */
+#define UART_IIR(rs)		(rs->baseport + 2)	/* Interrupt ID */
+#define UART_FIFO(rs)		(rs->baseport + 2)	/* FIFO Control */
+#define UART_LCR(rs)		(rs->baseport + 3)	/* Line Control */
+#define UART_LSR(rs)		(rs->baseport + 5)	/* Line Status  */
+#define UART_CAT(rs)		(rs->baseport + 7)	/* */
+
+
+#define UART_FREQ			115200
+#define UART_DIVISOR(br)	(UART_FREQ / br)
+
+#define DLM(br)			((unt8)((UART_DIVISOR(br) & 0xff00) >> 8))
+#define DLL(br)			((unt8)(UART_DIVISOR(br) & 0x00ff))
+
+/* Para el registro LCR (Line Control Register) */
+#define LCR_WORD_LENGTH(wl)	(wl - 5)	/* 00b = 5  01b = 6  10b = 7  11b = 8   */
+#define LCR_STOP_LENGTH		0x00	/* 0 = 1 bit  1 = 1.5 y no entiendo mas */ 
+#define LCR_PARITY_ON		0x08
+#define LCR_PARITY_EVEN		0x10	/* solo importa si PARITY_ON  */
+#define LCR_PARITY_CONSTANT	0x20	/* solo importa si PARITY_ON  */
+						/* 0 si PARITY_EVEN y 1 si no */
+#define LCR_REG_ACCESS		0x80	/* 0 = [THR | RBR | IER] 1= [DLL | DLM] */
+
+
+/* Para el registro LSR (Line Status Register) */
+#define LSR_INPUT_RBR		0x01	/* Hay un char en el reg. RBR   */
+#define LSR_OVERRUN_ERROR	0x02	/* Nuevo char escrito sobre RBR */
+#define LSR_PARITY_ERROR	0x04	/* Hubo un error de paridad	*/
+#define LSR_TRANSFER_ERROR	0x08	/* Hubo un error en la transferencia */
+#define LSR_ALARM			0x10	/* La otra PC interrumpio el envio */
+#define LSR_THR_EMPTY		0x20	/* THR esta vacio */
+#define LSR_TSR_EMPTY		0x40	/* TSR esta vacio */
+
+/* Para el registro IER (Interrupt Enable Register) */
+#define IER_NEW_CHAR_READY	0x01	/* Dispara cuando un nuevo char esta listo */
+#define IER_THR_READY		0x02	/* Dispara cuando THR esta vacio y listo   */
+#define IER_LSR_CHANGE		0x04  /* Dispara cuando cambia el reg. de estado */
+
+/* Para el registro IIR (Interrupt ID Register) */
+#define IIR_CURRENT		0x01	/* Este puerto causo la int?  */
+#define IIR_CHANGED		0x01	/* Cambio CTS, DSR, RI o RLSD */
+#define IIR_THR_EMPTY 		0x03	/* THR esta vacio */
+#define IIR_NEW_CHAR		0x05	/* Hay un nuevo char en RBR */
+#define IIR_ERROR			0x07	/* Hubo un error (hay que ver LSR) */
+#define IIR_TIME_OUT		0x09  /* El buf. no esta lleno pero el otro  */
+						/* lado no ha enviado nada hace tiempo */ 
+
+/* Para el registro IIR (FIFO Control Register) */
+#define FIFO_BUFFER_ON	0x01	/* Habilita el buffer */
+#define FIFO_CLEAR_RECEIVE_BUFFER	0x02	/* Limpia el buffer de entrada */
+#define FIFO_CLEAR_SEND_BUFFER	0x04	/* Limpia el buffer de salida */
+#define FIFO_1C_BEFORE_INT	0x00
+#define FIFO_4C_BEFORE_INT	0x40
+#define FIFO_8C_BEFORE_INT	0x80
+#define FIFO_14C_BEFORE_INT	0xC0
+
+/* El "time-out" se da siempre que no se ha llenado el buffer y ha transcurrido */
+/* el tiempo necesario para recibir *3* palabras. Para determinar esto hay que  */
+/* revisar el reg. IIR */
+
+
+
+/* ========================================================================== *
+ ==  t_serial                                                                ==
+ * ========================================================================== */
+PUBLICA void t_serial()
+{
+   inic_serial();
+   t_driver(&serial_drv);
+}
+
+
+/* ========================================================================== *
+ ==  detect_uart                                                              ==
+ * ========================================================================== */
+int detect_uart(rs232 *rs) {
+  bool reg;
+  unt8 value;
+
+  /* Chequeo si esta el LCR
+  value = inp8(UART_LCR(rs));
+  outp8(UART_LCR(rs), 0x1B);
+
+  if(inp8(UART_LCR(rs)) != 0x1B) return UARTNOTPR;
+  outp8(UART_LCR(rs), 0x03);
+
+  if(inp8(UART_LCR(rs)) != 0x03) return UARTNOTPR;
+  outp8(UART_LCR(rs), value);
+
+  /* Chequeo el scratch register */
+  value = inp8(UART_CAT(rs));			/* salvo el valor del registro 	*/
+
+  outp8(UART_CAT(rs), 0x55);				/* escribo 	*/
+  reg = (inp8(UART_CAT(rs)) == 0x55);		/* leo	*/
+
+  outp8(UART_CAT(rs), 0xAA);				/* escribo	*/
+  reg = (inp8(UART_CAT(rs)) == 0xAA);		/* leo	*/
+
+  outp8(UART_CAT(rs), value);			/* restauro el valor del registro	*/
+
+  /* Chequeo si tiene FIFO */
+  outp8(UART_FIFO(rs), 0x01);			
+  value = inp8(UART_FIFO(rs));
+  outp8(UART_FIFO(rs), 0x00); 
+
+
+  if(!(value & 0x80)) return (reg ? UART16450 : UART8250);
+  if(!(value & 0x40)) return (reg ? UART16550 : UART16550_NOSCR);
+
+  return (reg ? UART16550A : UART16550A_NOSCR);
+}
+	
+/* ========================================================================== *
+ ==  inic_serial                                                             ==
+ * ========================================================================== */
+PRIVADA void inic_serial()
+{  
+   int p;
+   rs232 *puerto;
+   mostrar("\nInicializando puertos seriales");
+   
+   /* Por defecto se inicializan los puertos seriales con los siguientes     */
+   /* parametros: 8 bits de datos, 1 bit de stop, 9600 baudios, 8 palabras   */
+   /* para el FIFO buffer.  */
+   
+   for(p=0, puerto = &pseriales[0]; p < NRO_PUERTOS_SERIE; p++, puerto++){
+      puerto->baudios     = 9600;
+	puerto->bits_stop   = 1;
+	puerto->word_length = 8;
+	puerto->parity	  = false;
+	puerto->parity_even = false;
+	puerto->parity_const= fasle;
+
+	puerto->icount = 0;	
+	puerto->ihead  = &ibuf[0];	
+	puerto->itail  = &ibuf[0];	
+	puerto->ocount = 0;	
+	puerto->ohead  = &obuf[0];	
+	puerto->otail  = &obuf[0];	
+	puerto->ready  = true;
+
+	rs_consifurar(puerto);
+   }
+
+   /* Activa las ints. para los dos controladores */
+   est_man_irq(IRQ_RS232, irq_rs232_com1);
+   est_man_irq(IRQ_SECUNDARIO, irq_rs232_com2);
+   outp8(UART_IER(&pserials[0]), IER_NEW_CHAR_READY | IER_THR_READY | IER_LSR_CHANGE);
+   outp8(UART_IER(&pserials[1]), IER_NEW_CHAR_READY | IER_THR_READY | IER_LSR_CHANGE);
+}
+
+
+void rs_configurar(rs232 *puerto)
+{
+  desactivar();
+
+  /* Establece la velocidad de transferencia en baudios. */
+  outp8(UART_LCR(puerto), LCR_REG_ACCESS);
+  outp8(UART_DLL(puerto), DLL(puerto->baudios));
+  outp8(UART_DLM(puerto), DLM(puerto->baudios));
+
+  /* Cambia el registro usual de control. */
+  control = 0;
+  if(puerto->parity){
+     control = LCR_PARITY_ON;
+     if(puerto->parity_even){
+        control |= LCR_PARITY_EVEN;
+        if(puerto->parity_const)
+           control |= LCR_PARITY_CONSTANT;
+     }
+  }
+  
+  control |= LCR_WORD_LENGTH(puerto->word_length);
+  outp8(UART_LCR(puerto), control);
+
+  activar();
+}
+
+
+
+PUBLICA void irq_rs232_com1(regs * r)
+{
+   rs232 * p = &pseriales[0];
+
+   while(true){
+      switch(inp8(UART_IID(p))){
+         case IID
+
+      };
+
+   }
+}
+
+
+	/* Interrupt hander for IRQ4.
+	 * Only 1 line (usually COM1) should use it.
+26906	 */
+26907	
+26908	  register rs232_t *rs = &rs_lines[0];
+26909	
+26910	  while (TRUE) {
+26911	        /* Loop to pick up ALL pending interrupts for device.
+26912	         * This usually just wastes time unless the hardware has a buffer
+26913	         * (and then we have to worry about being stuck in the loop too long).
+26914	         * Unfortunately, some serial cards lock up without this.
+26915	         */
+26916	        switch (in_byte(rs->int_id_port)) {
+26917	        case IS_RECEIVER_READY:
+26918	                in_int(rs);
+26919	                continue;
+26920	        case IS_TRANSMITTER_READY:
+26921	                out_int(rs);
+26922	                continue;
+26923	        case IS_MODEM_STATUS_CHANGE:
+26924	                modem_int(rs);
+26925	                continue;
+26926	        case IS_LINE_STATUS_CHANGE:
+26927	                line_int(rs);
+26928	                continue;
+26929	        }
+26930	        return(1);      /* reenable serial interrupt */
+26931	  }
+26932	}
+	
+	
+26935	/*==========================================================================*
+26936	 *                              rs232_2handler                              *
+26937	 *==========================================================================*/
+26938	PRIVATE int rs232_2handler(irq)
+26939	int irq;
+26940	{
+26941	/* Interrupt hander for IRQ3.
+26942	 * Only 1 line (usually COM2) should use it.
+26943	 */
+26944	
+26945	  register rs232_t *rs = &rs_lines[1];
+26946	
+26947	  while (TRUE) {
+26948	        switch (in_byte(rs->int_id_port)) {
+26949	        case IS_RECEIVER_READY:
+26950	                in_int(rs);
+26951	                continue;
+26952	        case IS_TRANSMITTER_READY:
+26953	                out_int(rs);
+26954	                continue;
+26955	        case IS_MODEM_STATUS_CHANGE:
+26956	                modem_int(rs);
+26957	                continue;
+26958	        case IS_LINE_STATUS_CHANGE:
+26959	                line_int(rs);
+26960	                continue;
+26961	        }
+26962	        return(1);      /* reenable serial interrupt */
+26963	  }
+26964	}
+
+/* ========================================================================== *
+ ==  t_dram                                                                  ==
+ * ========================================================================== */
+PRIVADA dispositivo *preparar(int disp)
+{
+   if(disp != DRAM) return NULL;
+
+   return &geometria;
+}
+	
+
+	
+/*===========================================================================*
+ *							                                   *
+ *===========================================================================*/
+PRIVADA int operar(pid proc, operacion_es *es)
+{
+   unt32 cnt;
+   dir32 dir;
+
+   if(es->buf <= 0) return (es->cnt = E_INV);
+   if(es->pos <  0) return (es->cnt = E_INV);
+
+   if(es->pos >= geometria.tam)  return OK;
+
+   cnt = es->cnt;
+   if((es->pos + cnt) > geometria.tam)
+      cnt = geometria.tam - es->pos;
+  
+   dir = geometria.base + es->pos;
+   es->cnt -= cnt;
+
+   if(cnt == 0) return OK;
+
+   if (es->op == LEER_DISP)  cp_mem(es->buf, dir, cnt);
+   else                      cp_mem(dir, es->buf, cnt);
+
+   return OK;
+}
+	
+	
+/*============================================================================*
+ *                              m_do_open                                     *
+ *============================================================================*/
+PRIVADA int abrir(driver *d, mensaje *m)
+{
+  if(preparar(m->DISPOSITIVO) == NULL) return E_SIN_DISP;
+
+  return OK;
+}
+	
+	
+	
+	
