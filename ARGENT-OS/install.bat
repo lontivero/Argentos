@@ -1,0 +1,1 @@
+.\utiles\rawrite -n -f a.img -d a: 
